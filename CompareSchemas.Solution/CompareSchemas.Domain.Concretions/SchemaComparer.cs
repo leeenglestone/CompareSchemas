@@ -27,12 +27,12 @@ namespace CompareSchemas.Domain.Concretions
             comparisonItems.AddRange(from SchemaItems.User user in databaseA.Users select new ComparisonItem(user.Name, SchemaItemType.User, true, false, user.CreateSql));
 
             // Loop through second db, add to central list if missing
-            comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.Tables, comparisonItems.Where(x=>x.ItemType == SchemaItemType.Table).ToList()));
+            comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.Tables, comparisonItems.Where(x => x.ItemType == SchemaItemType.Table).ToList()));
             comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.StoredProcedures, comparisonItems.Where(x => x.ItemType == SchemaItemType.StoredProcedure).ToList()));
             comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.Views, comparisonItems.Where(x => x.ItemType == SchemaItemType.View).ToList()));
             comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.UserDefinedFunctions, comparisonItems.Where(x => x.ItemType == SchemaItemType.UserDefinedFunction).ToList()));
             comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.Users, comparisonItems.Where(x => x.ItemType == SchemaItemType.User).ToList()));
-            comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.Schemas, comparisonItems.Where(x => x.ItemType == SchemaItemType.Schema).ToList()));            
+            comparisonItems.AddRange(AddItemToDatabaseBIfMissingFromDatabaseA(databaseB.Schemas, comparisonItems.Where(x => x.ItemType == SchemaItemType.Schema).ToList()));
 
             // Check if different, if in both databases
             foreach (var item in comparisonItems)
@@ -70,8 +70,20 @@ namespace CompareSchemas.Domain.Concretions
 
         public IDatabase GetDatabase(string serverName, string databaseName)
         {
-            var serverConnection = new ServerConnection(serverName);
-            return GetDatabase(serverConnection, databaseName);
+            IDatabase database;
+
+            try
+            {
+                var serverConnection = new ServerConnection(serverName);
+                serverConnection.LoginSecure = true;
+                database = GetDatabase(serverConnection, databaseName);
+            }
+            catch(Exception ex)
+            {
+                throw new Exception($"Could not connect to {databaseName} on {serverName}", ex);
+            }
+
+            return database;
         }
 
         public IDatabase GetDatabase(string serverName, string databaseName, string username, string password)
@@ -195,17 +207,19 @@ namespace CompareSchemas.Domain.Concretions
 
         public void EmailResult(IComparisonResult comparisonResult)
         {
-            var emailBody = new StringBuilder();
-            emailBody.AppendLine($"<p>The following schema differences were found in database <strong>{comparisonResult.DatabaseName}</strong> on <strong>{comparisonResult.ServerNameA}</strong> and <strong>{comparisonResult.ServerNameB}</strong></p>");
+            try
+            {
+                var emailBody = new StringBuilder();
+                emailBody.AppendLine($"<p>The following schema differences were found in database <strong>{comparisonResult.DatabaseName}</strong> on <strong>{comparisonResult.ServerNameA}</strong> and <strong>{comparisonResult.ServerNameB}</strong></p>");
 
-            var tableDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.Table && x.IsDifferent);
-            var storedProcedureDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.StoredProcedure && x.IsDifferent);
-            var viewDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.View && x.IsDifferent);
-            var userDefinedFunctionsDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.UserDefinedFunction && x.IsDifferent);
-            var userDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.User && x.IsDifferent);
-            var schemaDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.Schema && x.IsDifferent);
+                var tableDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.Table && x.IsDifferent);
+                var storedProcedureDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.StoredProcedure && x.IsDifferent);
+                var viewDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.View && x.IsDifferent);
+                var userDefinedFunctionsDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.UserDefinedFunction && x.IsDifferent);
+                var userDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.User && x.IsDifferent);
+                var schemaDifferences = comparisonResult.ComparisonItems.Count(x => x.ItemType == SchemaItemType.Schema && x.IsDifferent);
 
-            emailBody.AppendLine($@"<ul>
+                emailBody.AppendLine($@"<ul>
                 <li><a href=""#Tables"">Tables ({tableDifferences})</a></li>
                 <li><a href=""#StoredProcedures"">StoredProcedures ({storedProcedureDifferences})</a></li>
                 <li><a href=""#Views"">Views ({viewDifferences})</a></li>
@@ -214,22 +228,27 @@ namespace CompareSchemas.Domain.Concretions
                 <li><a href=""#Schemas"">Schemas ({schemaDifferences})</a></li>
             </ul>");
 
-            emailBody.AppendLine(AppendSchemaBody("Tables", SchemaItemType.Table, comparisonResult));
-            emailBody.AppendLine(AppendSchemaBody("StoredProcedures", SchemaItemType.StoredProcedure, comparisonResult));
-            emailBody.AppendLine(AppendSchemaBody("Views", SchemaItemType.View, comparisonResult));
-            emailBody.AppendLine(AppendSchemaBody("UserDefinedFunctions", SchemaItemType.UserDefinedFunction, comparisonResult));
-            emailBody.AppendLine(AppendSchemaBody("Users", SchemaItemType.User, comparisonResult));
-            emailBody.AppendLine(AppendSchemaBody("Schemas", SchemaItemType.Schema, comparisonResult));
+                emailBody.AppendLine(AppendSchemaBody("Tables", SchemaItemType.Table, comparisonResult));
+                emailBody.AppendLine(AppendSchemaBody("StoredProcedures", SchemaItemType.StoredProcedure, comparisonResult));
+                emailBody.AppendLine(AppendSchemaBody("Views", SchemaItemType.View, comparisonResult));
+                emailBody.AppendLine(AppendSchemaBody("UserDefinedFunctions", SchemaItemType.UserDefinedFunction, comparisonResult));
+                emailBody.AppendLine(AppendSchemaBody("Users", SchemaItemType.User, comparisonResult));
+                emailBody.AppendLine(AppendSchemaBody("Schemas", SchemaItemType.Schema, comparisonResult));
 
-            using (var client = new SmtpClient(ConfigurationManager.AppSettings["Email.SmtpHost"]))
+                using (var client = new SmtpClient(ConfigurationManager.AppSettings["Email.SmtpHost"]))
+                {
+                    var mailMessage = new MailMessage(
+                        ConfigurationManager.AppSettings["Email.From"],
+                        ConfigurationManager.AppSettings["Email.To"],
+                        $"Schema Drift Report for {comparisonResult.DatabaseName} on {comparisonResult.ServerNameA} and {comparisonResult.ServerNameB}",
+                        emailBody.ToString())
+                    { IsBodyHtml = true };
+                    client.Send(mailMessage);
+                }
+            }
+            catch (Exception ex)
             {
-                var mailMessage = new MailMessage(
-                    ConfigurationManager.AppSettings["Email.From"],
-                    ConfigurationManager.AppSettings["Email.To"],
-                    $"Schema Drift Report for {comparisonResult.DatabaseName} on {comparisonResult.ServerNameA} and {comparisonResult.ServerNameB}",
-                    emailBody.ToString())
-                { IsBodyHtml = true };
-                client.Send(mailMessage);
+                throw new Exception($"There was a problem sending the schema compare report email.", ex);
             }
         }
 
